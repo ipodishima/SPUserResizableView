@@ -6,6 +6,7 @@
 //
 
 #import "SPUserResizableView.h"
+#import "LayerView.h"
 
 /* Let's inset everything that's drawn (the handles and the content view)
    so that users can trigger a resize from a few pixels outside of
@@ -26,83 +27,44 @@ static SPUserResizableViewAnchorPoint SPUserResizableViewMiddleRightAnchorPoint 
 static SPUserResizableViewAnchorPoint SPUserResizableViewLowerRightAnchorPoint = { 0.0, 0.0, 1.0, -1.0 };
 static SPUserResizableViewAnchorPoint SPUserResizableViewLowerMiddleAnchorPoint = { 0.0, 0.0, 1.0, 0.0 };
 
-@interface SPGripViewBorderView : UIView
+static CGFloat PointWidth = 10.0;
+
+@interface UIBezierPath (dqd_arrowhead)
+
++ (UIBezierPath *)dqd_bezierPathWithArrowFromPoint:(CGPoint)startPoint
+                                           toPoint:(CGPoint)endPoint
+                                         tailWidth:(CGFloat)tailWidth
+                                         headWidth:(CGFloat)headWidth
+                                        headLength:(CGFloat)headLength;
+
 @end
 
-@implementation SPGripViewBorderView
-
-- (id)initWithFrame:(CGRect)frame {
-    if ((self = [super initWithFrame:frame])) {
-        // Clear background to ensure the content view shows through.
-        self.backgroundColor = [UIColor clearColor];
-    }
-    return self;
-}
-
-- (void)drawRect:(CGRect)rect {
-    CGContextRef context = UIGraphicsGetCurrentContext();
-    CGContextSaveGState(context);
-    
-    // (1) Draw the bounding box.
-    CGContextSetLineWidth(context, 1.0);
-    CGContextSetStrokeColorWithColor(context, [UIColor blueColor].CGColor);
-    CGContextAddRect(context, CGRectInset(self.bounds, kSPUserResizableViewInteractiveBorderSize/2, kSPUserResizableViewInteractiveBorderSize/2));
-    CGContextStrokePath(context);
-    
-    // (2) Calculate the bounding boxes for each of the anchor points.
-    CGRect upperLeft = CGRectMake(0.0, 0.0, kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize);
-    CGRect upperRight = CGRectMake(self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize, 0.0, kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize);
-    CGRect lowerRight = CGRectMake(self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize, self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize);
-    CGRect lowerLeft = CGRectMake(0.0, self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize);
-    CGRect upperMiddle = CGRectMake((self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize)/2, 0.0, kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize);
-    CGRect lowerMiddle = CGRectMake((self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize)/2, self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize);
-    CGRect middleLeft = CGRectMake(0.0, (self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize)/2, kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize);
-    CGRect middleRight = CGRectMake(self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize, (self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize)/2, kSPUserResizableViewInteractiveBorderSize, kSPUserResizableViewInteractiveBorderSize);
-    
-    // (3) Create the gradient to paint the anchor points.
-    CGFloat colors [] = { 
-        0.4, 0.8, 1.0, 1.0, 
-        0.0, 0.0, 1.0, 1.0
-    };
-    CGColorSpaceRef baseSpace = CGColorSpaceCreateDeviceRGB();
-    CGGradientRef gradient = CGGradientCreateWithColorComponents(baseSpace, colors, NULL, 2);
-    CGColorSpaceRelease(baseSpace), baseSpace = NULL;
-    
-    // (4) Set up the stroke for drawing the border of each of the anchor points.
-    CGContextSetLineWidth(context, 1);
-    CGContextSetShadow(context, CGSizeMake(0.5, 0.5), 1);
-    CGContextSetStrokeColorWithColor(context, [UIColor whiteColor].CGColor);
-    
-    // (5) Fill each anchor point using the gradient, then stroke the border.
-    CGRect allPoints[8] = { upperLeft, upperRight, lowerRight, lowerLeft, upperMiddle, lowerMiddle, middleLeft, middleRight };
-    for (NSInteger i = 0; i < 8; i++) {
-        CGRect currPoint = allPoints[i];
-        CGContextSaveGState(context);
-        CGContextAddEllipseInRect(context, currPoint);
-        CGContextClip(context);
-        CGPoint startPoint = CGPointMake(CGRectGetMidX(currPoint), CGRectGetMinY(currPoint));
-        CGPoint endPoint = CGPointMake(CGRectGetMidX(currPoint), CGRectGetMaxY(currPoint));
-        CGContextDrawLinearGradient(context, gradient, startPoint, endPoint, 0);
-        CGContextRestoreGState(context);
-        CGContextStrokeEllipseInRect(context, CGRectInset(currPoint, 1, 1));
-    }
-    CGGradientRelease(gradient), gradient = NULL;
-    CGContextRestoreGState(context);
-}
-
+@interface SPUserResizableView ()
+@property (nonatomic, strong) UIView *oldSuperview;
+@property (nonatomic) NSInteger oldSuperviewIndex;
 @end
 
 @implementation SPUserResizableView
-
-@synthesize contentView, minWidth, minHeight, preventsPositionOutsideSuperview, delegate;
+@synthesize strokeColor = _strokeColor, fillColor = _fillColor, textColor = _textColor, font = _font, lineWidth = _lineWidth, editing = _editing, delegate = _delegatel;
 
 - (void)setupDefaultAttributes {
-    borderView = [[SPGripViewBorderView alloc] initWithFrame:CGRectInset(self.bounds, kSPUserResizableViewGlobalInset, kSPUserResizableViewGlobalInset)];
-    [borderView setHidden:YES];
-    [self addSubview:borderView];
     self.minWidth = kSPUserResizableViewDefaultMinWidth;
     self.minHeight = kSPUserResizableViewDefaultMinHeight;
     self.preventsPositionOutsideSuperview = YES;
+    
+    self.strokeColor = [UIColor colorWithHexa:0xC7000D];
+    self.fillColor = [UIColor whiteColor];
+    self.lineWidth = 2.0;
+    self.shape = SPShapeRect;
+    
+    self.backgroundColor = [UIColor clearColor];
+    
+    self.editing = YES;
+}
+
+- (void)setupDefaultValues
+{
+    
 }
 
 - (id)initWithFrame:(CGRect)frame {
@@ -119,22 +81,30 @@ static SPUserResizableViewAnchorPoint SPUserResizableViewLowerMiddleAnchorPoint 
     return self;
 }
 
+- (id)initWithFrame:(CGRect)frame andDelegate:(id<DToolDelegate>)delegate
+{
+    if ((self = [super initWithFrame:frame])) {
+        [self setupDefaultAttributes];
+        self.delegate = delegate;
+    }
+    return self;
+}
+
+- (void) draw
+{
+    [self setNeedsDisplay];
+}
+
 - (void)setContentView:(UIView *)newContentView {
-    [contentView removeFromSuperview];
-    contentView = newContentView;
-    contentView.frame = CGRectInset(self.bounds, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2);
-    [self addSubview:contentView];
-    
-    // Ensure the border view is always on top by removing it and adding it to the end of the subview list.
-    [borderView removeFromSuperview];
-    [self addSubview:borderView];
+    [_contentView removeFromSuperview];
+    _contentView = newContentView;
+    _contentView.frame = CGRectInset(self.bounds, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2);
+    [self addSubview:_contentView];
 }
 
 - (void)setFrame:(CGRect)newFrame {
     [super setFrame:newFrame];
-    contentView.frame = CGRectInset(self.bounds, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2);
-    borderView.frame = CGRectInset(self.bounds, kSPUserResizableViewGlobalInset, kSPUserResizableViewGlobalInset);
-    [borderView setNeedsDisplay];
+    _contentView.frame = CGRectInset(self.bounds, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2);
 }
 
 static CGFloat SPDistanceBetweenTwoPoints(CGPoint point1, CGPoint point2) {
@@ -179,42 +149,37 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
     // Notify the delegate we've begun our editing session.
-    if (self.delegate && [self.delegate respondsToSelector:@selector(userResizableViewDidBeginEditing:)]) {
-        [self.delegate userResizableViewDidBeginEditing:self];
+    if (self.spDelegate && [self.spDelegate respondsToSelector:@selector(userResizableViewDidBeginEditing:)]) {
+        [self.spDelegate userResizableViewDidBeginEditing:self];
     }
-    
-    [borderView setHidden:NO];
+    self.editing = YES;
+    [self.delegate toolDidStartEditing:self];
+
     UITouch *touch = [touches anyObject];
     anchorPoint = [self anchorPointForTouchLocation:[touch locationInView:self]];
     
     // When resizing, all calculations are done in the superview's coordinate space.
-    touchStart = [touch locationInView:self.superview];
+    _touchStart = [touch locationInView:self.superview];
     if (![self isResizing]) {
         // When translating, all calculations are done in the view's coordinate space.
-        touchStart = [touch locationInView:self];
+        _touchStart = [touch locationInView:self];
     }
+    
+    [self setNeedsDisplay];
 }
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
     // Notify the delegate we've ended our editing session.
-    if (self.delegate && [self.delegate respondsToSelector:@selector(userResizableViewDidEndEditing:)]) {
-        [self.delegate userResizableViewDidEndEditing:self];
+    if (self.spDelegate && [self.spDelegate respondsToSelector:@selector(userResizableViewDidEndEditing:)]) {
+        [self.spDelegate userResizableViewDidEndEditing:self];
     }
 }
 
 - (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {
     // Notify the delegate we've ended our editing session.
-    if (self.delegate && [self.delegate respondsToSelector:@selector(userResizableViewDidEndEditing:)]) {
-        [self.delegate userResizableViewDidEndEditing:self];
+    if (self.spDelegate && [self.spDelegate respondsToSelector:@selector(userResizableViewDidEndEditing:)]) {
+        [self.spDelegate userResizableViewDidEndEditing:self];
     }
-}
-
-- (void)showEditingHandles {
-    [borderView setHidden:NO];
-}
-
-- (void)hideEditingHandles {
-    [borderView setHidden:YES];
 }
 
 - (void)resizeUsingTouchLocation:(CGPoint)touchPoint {
@@ -236,9 +201,9 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
     }
     
     // (2) Calculate the deltas using the current anchor point.
-    CGFloat deltaW = anchorPoint.adjustsW * (touchStart.x - touchPoint.x);
+    CGFloat deltaW = anchorPoint.adjustsW * (_touchStart.x - touchPoint.x);
     CGFloat deltaX = anchorPoint.adjustsX * (-1.0 * deltaW);
-    CGFloat deltaH = anchorPoint.adjustsH * (touchPoint.y - touchStart.y);
+    CGFloat deltaH = anchorPoint.adjustsH * (touchPoint.y - _touchStart.y);
     CGFloat deltaY = anchorPoint.adjustsY * (-1.0 * deltaH);
     
     // (3) Calculate the new frame.
@@ -280,11 +245,12 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
     }
     
     self.frame = CGRectMake(newX, newY, newWidth, newHeight);
-    touchStart = touchPoint;
+    _touchStart = touchPoint;
+    [self setNeedsDisplay];
 }
 
 - (void)translateUsingTouchLocation:(CGPoint)touchPoint {
-    CGPoint newCenter = CGPointMake(self.center.x + touchPoint.x - touchStart.x, self.center.y + touchPoint.y - touchStart.y);
+    CGPoint newCenter = CGPointMake(self.center.x + touchPoint.x - _touchStart.x, self.center.y + touchPoint.y - _touchStart.y);
     if (self.preventsPositionOutsideSuperview) {
         // Ensure the translation won't cause the view to move offscreen.
         CGFloat midPointX = CGRectGetMidX(self.bounds);
@@ -313,10 +279,226 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
     }
 }
 
+- (void)drawRect:(CGRect)rect {
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGContextSaveGState(context);
+    
+    // (1) Draw the bounding box.
+    CGContextSetLineWidth(context, self.lineWidth);
+    CGContextSetStrokeColorWithColor(context, self.strokeColor.CGColor);
+    CGContextSetFillColorWithColor(context, self.fillColor.CGColor);
+   
+    CGRect borderRect = CGRectInset(self.bounds, kSPUserResizableViewInteractiveBorderSize/2, kSPUserResizableViewInteractiveBorderSize/2);
+
+    switch (self.shape) {
+        case SPShapeRect:
+            CGContextFillRect(context, borderRect);
+            CGContextStrokeRect(context, borderRect);
+            break;
+        case SPShapeEllipse:
+            CGContextFillEllipseInRect(context, borderRect);
+            CGContextStrokeEllipseInRect(context, borderRect);
+            break;
+            case SPShapeArrow:
+        {
+            CGPoint startPoint = CGPointMake((self.bounds.size.width)/2, self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize);
+            CGPoint stopPoint = CGPointMake((self.bounds.size.width )/2, +kSPUserResizableViewInteractiveBorderSize);
+            CGFloat height = CGRectGetHeight(borderRect);
+            CGFloat width = CGRectGetWidth(borderRect);
+            
+            UIBezierPath *path = [UIBezierPath dqd_bezierPathWithArrowFromPoint:startPoint
+                                                          toPoint:stopPoint
+                                                        tailWidth:0.2*width
+                                                        headWidth:width
+                                                       headLength:0.3*height];
+            [path fill];
+            [path stroke];
+        }
+            break;
+        default:
+            break;
+    }
+    
+    if (_editing)
+    {
+        // (2) Calculate the bounding boxes for each of the anchor points.
+        CGPoint upperLeft = CGPointMake(0.0, 0.0);
+        CGPoint upperRight = CGPointMake(self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize, 0.0);
+        CGPoint lowerRight = CGPointMake(self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize, self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize);
+        CGPoint lowerLeft = CGPointMake(0.0, self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize);
+        CGPoint upperMiddle = CGPointMake((self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize)/2, 0.0);
+        CGPoint lowerMiddle = CGPointMake((self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize)/2, self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize);
+        CGPoint middleLeft = CGPointMake(0.0, (self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize)/2);
+        CGPoint middleRight = CGPointMake(self.bounds.size.width - kSPUserResizableViewInteractiveBorderSize, (self.bounds.size.height - kSPUserResizableViewInteractiveBorderSize)/2);
+
+        NSMutableArray *allPoints = nil;
+        
+        switch (self.shape) {
+            case SPShapeRect:
+            case SPShapeArrow:
+                allPoints = [NSMutableArray arrayWithObjects:
+                             [NSValue valueWithCGPoint:upperLeft],
+                             [NSValue valueWithCGPoint:upperRight],
+                             [NSValue valueWithCGPoint:lowerRight],
+                             [NSValue valueWithCGPoint:lowerLeft],
+                             [NSValue valueWithCGPoint:upperMiddle],
+                             [NSValue valueWithCGPoint:lowerMiddle],
+                             [NSValue valueWithCGPoint:middleLeft],
+                             [NSValue valueWithCGPoint:middleRight], nil];
+                break;
+            case SPShapeEllipse:
+                allPoints = [NSMutableArray arrayWithObjects:
+                             [NSValue valueWithCGPoint:upperMiddle],
+                             [NSValue valueWithCGPoint:lowerMiddle],
+                             [NSValue valueWithCGPoint:middleLeft],
+                             [NSValue valueWithCGPoint:middleRight], nil];
+                break;
+            default:
+                break;
+        }
+        // (5) Fill each anchor point using the gradient, then stroke the border.
+        for (NSValue *v in allPoints) {
+            [self drawPointOnContext:context forPoint:[v CGPointValue]];
+        }
+    }
+    CGContextRestoreGState(context);
+}
+
+- (void) drawPointOnContext:(CGContextRef)context forPoint:(CGPoint)point
+{
+    CGContextSaveGState(context);
+    CGPoint onSizePoint = point;
+    CGMutablePathRef circlePath = CGPathCreateMutable();
+    CGPathAddEllipseInRect(circlePath, NULL, CGRectMake(onSizePoint.x, onSizePoint.y, PointWidth, PointWidth));
+    CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
+    CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
+    CGContextSetLineWidth(context, 1.0);
+    
+    CGContextAddPath(context, circlePath);
+    CGContextFillPath(context);
+    CGContextAddPath(context, circlePath);
+    CGContextStrokePath(context);
+    CGPathRelease(circlePath);
+    CGContextRestoreGState(context);
+}
+
 - (void)dealloc {
-    [contentView removeFromSuperview];
-    [borderView release];
-    [super dealloc];
+    [_contentView removeFromSuperview];
+}
+
+#pragma mark - DTool protocol
+// undo / redo
+- (BOOL)canUndo
+{
+    return self.superview == nil ? NO : YES;
+}
+
+- (void)undoLatestStep
+{
+    if ([self canUndo]) {
+        self.oldSuperview = self.superview;
+        self.oldSuperviewIndex = [[self.superview subviews] indexOfObject:self];
+        [self removeFromSuperview];
+    }
+}
+
+- (BOOL)canRedo
+{
+    return self.superview == nil ? YES : NO;
+}
+
+- (void)redoLatestStep
+{
+    if ([self canRedo]) {
+        [self.oldSuperview insertSubview:self atIndex:self.oldSuperviewIndex];
+        self.oldSuperview = nil;
+    }
+}
+
+- (void) finalizeUndoRedo
+{
+    self.oldSuperview = nil;
+}
+
+- (void)setEditing:(BOOL)editing
+{
+    _editing = editing;
+    [self setNeedsDisplay];
+    
+    if (_editing) {
+        [self.delegate toolDidStartEditing:self];
+    }
+}
+
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event
+{
+    BOOL canAcceptTouches = NO;
+    
+    if (!self.editing && CGRectContainsPoint(self.frame, point)) {
+        canAcceptTouches = YES;
+    }
+    
+    if (!canAcceptTouches)
+    {
+        self.editing = NO;
+    }
+    return canAcceptTouches;
+}
+
+@end
+
+#define kArrowPointCount 7
+
+@implementation UIBezierPath (dqd_arrowhead)
+
++ (UIBezierPath *)dqd_bezierPathWithArrowFromPoint:(CGPoint)startPoint
+                                           toPoint:(CGPoint)endPoint
+                                         tailWidth:(CGFloat)tailWidth
+                                         headWidth:(CGFloat)headWidth
+                                        headLength:(CGFloat)headLength {
+    CGFloat length = hypotf(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+    
+    CGPoint points[kArrowPointCount];
+    [self dqd_getAxisAlignedArrowPoints:points
+                              forLength:length
+                              tailWidth:tailWidth
+                              headWidth:headWidth
+                             headLength:headLength];
+    
+    CGAffineTransform transform = [self dqd_transformForStartPoint:startPoint
+                                                          endPoint:endPoint
+                                                            length:length];
+    
+    CGMutablePathRef cgPath = CGPathCreateMutable();
+    CGPathAddLines(cgPath, &transform, points, sizeof points / sizeof *points);
+    CGPathCloseSubpath(cgPath);
+    
+    UIBezierPath *uiPath = [UIBezierPath bezierPathWithCGPath:cgPath];
+    CGPathRelease(cgPath);
+    return uiPath;
+}
+
++ (void)dqd_getAxisAlignedArrowPoints:(CGPoint[kArrowPointCount])points
+                            forLength:(CGFloat)length
+                            tailWidth:(CGFloat)tailWidth
+                            headWidth:(CGFloat)headWidth
+                           headLength:(CGFloat)headLength {
+    CGFloat tailLength = length - headLength;
+    points[0] = CGPointMake(0, tailWidth / 2);
+    points[1] = CGPointMake(tailLength, tailWidth / 2);
+    points[2] = CGPointMake(tailLength, headWidth / 2);
+    points[3] = CGPointMake(length, 0);
+    points[4] = CGPointMake(tailLength, -headWidth / 2);
+    points[5] = CGPointMake(tailLength, -tailWidth / 2);
+    points[6] = CGPointMake(0, -tailWidth / 2);
+}
+
++ (CGAffineTransform)dqd_transformForStartPoint:(CGPoint)startPoint
+                                       endPoint:(CGPoint)endPoint
+                                         length:(CGFloat)length {
+    CGFloat cosine = (endPoint.x - startPoint.x) / length;
+    CGFloat sine = (endPoint.y - startPoint.y) / length;
+    return (CGAffineTransform){ cosine, sine, -sine, cosine, startPoint.x, startPoint.y };
 }
 
 @end

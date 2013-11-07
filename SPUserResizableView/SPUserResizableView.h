@@ -8,6 +8,7 @@
 //  UIView subclass.
 
 #import <Foundation/Foundation.h>
+#import "DToolProtocol.h"
 
 typedef struct SPUserResizableViewAnchorPoint {
     CGFloat adjustsX;
@@ -16,23 +17,23 @@ typedef struct SPUserResizableViewAnchorPoint {
     CGFloat adjustsW;
 } SPUserResizableViewAnchorPoint;
 
-@protocol SPUserResizableViewDelegate;
-@class SPGripViewBorderView;
+typedef enum
+{
+    SPShapeRect,
+    SPShapeEllipse,
+    SPShapeArrow
+}SPShape;
 
-@interface SPUserResizableView : UIView {
-    SPGripViewBorderView *borderView;
-    UIView *contentView;
-    CGPoint touchStart;
-    CGFloat minWidth;
-    CGFloat minHeight;
+@protocol SPUserResizableViewDelegate;
+
+@interface SPUserResizableView : UIView <DToolProtocol> {
+    CGPoint _touchStart;
     
     // Used to determine which components of the bounds we'll be modifying, based upon where the user's touch started.
     SPUserResizableViewAnchorPoint anchorPoint;
-    
-    id <SPUserResizableViewDelegate> delegate;
 }
 
-@property (nonatomic, assign) id <SPUserResizableViewDelegate> delegate;
+@property (nonatomic, weak) id <SPUserResizableViewDelegate> spDelegate;
 
 // Will be retained as a subview.
 @property (nonatomic, assign) UIView *contentView;
@@ -40,12 +41,10 @@ typedef struct SPUserResizableViewAnchorPoint {
 // Default is 48.0 for each.
 @property (nonatomic) CGFloat minWidth;
 @property (nonatomic) CGFloat minHeight;
+@property (nonatomic) SPShape shape;
 
 // Defaults to YES. Disables the user from dragging the view outside the parent view's bounds.
 @property (nonatomic) BOOL preventsPositionOutsideSuperview;
-
-- (void)hideEditingHandles;
-- (void)showEditingHandles;
 
 @end
 
