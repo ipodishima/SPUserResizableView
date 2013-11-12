@@ -17,6 +17,13 @@
 #define kSPUserResizableViewDefaultMinHeight 48.0
 #define kSPUserResizableViewInteractiveBorderSize 10.0
 
+#define kMinWidth @"kMinWidth"
+#define kMinHeight @"kMinHeight"
+#define kStrokeColor @"kStrokeColor"
+#define kFillColor @"kFillColor"
+#define kLineWidth @"kLineWidth"
+#define kShape @"kShape"
+
 static SPUserResizableViewAnchorPoint SPUserResizableViewNoResizeAnchorPoint = { 0.0, 0.0, 0.0, 0.0 };
 static SPUserResizableViewAnchorPoint SPUserResizableViewUpperLeftAnchorPoint = { 1.0, 1.0, -1.0, 1.0 };
 static SPUserResizableViewAnchorPoint SPUserResizableViewMiddleLeftAnchorPoint = { 1.0, 0.0, 0.0, 1.0 };
@@ -77,8 +84,28 @@ static CGFloat PointWidth = 10.0;
 - (id)initWithCoder:(NSCoder *)aDecoder {
     if ((self = [super initWithCoder:aDecoder])) {
         [self setupDefaultAttributes];
+        
+        self.minWidth = [aDecoder decodeFloatForKey:kMinWidth];
+        self.minHeight = [aDecoder decodeFloatForKey:kMinHeight];
+        self.strokeColor = [UIColor colorWithString:[aDecoder decodeObjectForKey:kStrokeColor]];
+        self.fillColor = [UIColor colorWithString:[aDecoder decodeObjectForKey:kFillColor]];
+        self.lineWidth = [aDecoder decodeFloatForKey:kLineWidth];
+        self.shape = [aDecoder decodeIntegerForKey:kShape];
+        self.editing = NO;
     }
     return self;
+}
+
+- (void)encodeWithCoder:(NSCoder *)aCoder
+{
+    [super encodeWithCoder:aCoder];
+    
+    [aCoder encodeFloat:self.minWidth forKey:kMinWidth];
+    [aCoder encodeFloat:self.minHeight forKey:kMinHeight];
+    [aCoder encodeObject:[self.strokeColor stringFromColor] forKey:kStrokeColor];
+    [aCoder encodeObject:[self.fillColor stringFromColor] forKey:kFillColor];
+    [aCoder encodeFloat:self.lineWidth forKey:kLineWidth];
+    [aCoder encodeInteger:self.shape forKey:kShape];
 }
 
 - (id)initWithFrame:(CGRect)frame andDelegate:(id<DToolDelegate>)delegate
