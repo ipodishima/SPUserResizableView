@@ -200,6 +200,7 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
     if (self.spDelegate && [self.spDelegate respondsToSelector:@selector(userResizableViewDidEndEditing:)]) {
         [self.spDelegate userResizableViewDidEndEditing:self];
     }
+    [self.delegate toolDidStopEditing:self];
 }
 
 - (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {
@@ -207,6 +208,7 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
     if (self.spDelegate && [self.spDelegate respondsToSelector:@selector(userResizableViewDidEndEditing:)]) {
         [self.spDelegate userResizableViewDidEndEditing:self];
     }
+    [self.delegate toolDidStopEditing:self];
 }
 
 - (void)resizeUsingTouchLocation:(CGPoint)touchPoint {
