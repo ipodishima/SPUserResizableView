@@ -52,7 +52,7 @@ static CGFloat PointWidth = 10.0;
 @end
 
 @implementation SPUserResizableView
-@synthesize strokeColor = _strokeColor, fillColor = _fillColor, textColor = _textColor, font = _font, lineWidth = _lineWidth, editing = _editing, delegate = _delegatel;
+@synthesize strokeColor = _strokeColor, fillColor = _fillColor, textColor = _textColor, font = _font, lineWidth = _lineWidth, editing = _editing, delegate = _delegatel, inRemoveMode = _inRemoveMode;
 
 - (void)setupDefaultAttributes {
     self.minWidth = kSPUserResizableViewDefaultMinWidth;
@@ -200,7 +200,7 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
     if (self.spDelegate && [self.spDelegate respondsToSelector:@selector(userResizableViewDidEndEditing:)]) {
         [self.spDelegate userResizableViewDidEndEditing:self];
     }
-    [self.delegate toolDidStopEditing:self];
+    [self.delegate toolDidStopEditing:self onPoint:[[touches anyObject] locationInView:self]];
 }
 
 - (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {
@@ -208,7 +208,7 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
     if (self.spDelegate && [self.spDelegate respondsToSelector:@selector(userResizableViewDidEndEditing:)]) {
         [self.spDelegate userResizableViewDidEndEditing:self];
     }
-    [self.delegate toolDidStopEditing:self];
+    [self.delegate toolDidStopEditing:self onPoint:[[touches anyObject] locationInView:self]];
 }
 
 - (void)resizeUsingTouchLocation:(CGPoint)touchPoint {
@@ -451,6 +451,11 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
 
 - (void)setEditing:(BOOL)editing
 {
+    if (self.inRemoveMode && editing)
+    {
+        [self removeFromSuperview];
+        return;
+    }
     _editing = editing;
     [self setNeedsDisplay];
     
