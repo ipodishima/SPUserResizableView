@@ -15,7 +15,7 @@
 
 #define kSPUserResizableViewDefaultMinWidth 48.0
 #define kSPUserResizableViewDefaultMinHeight 48.0
-#define kSPUserResizableViewInteractiveBorderSize 10.0
+#define kSPUserResizableViewInteractiveBorderSize 14.0
 
 #define kMinWidth @"kMinWidth"
 #define kMinHeight @"kMinHeight"
@@ -23,6 +23,7 @@
 #define kFillColor @"kFillColor"
 #define kLineWidth @"kLineWidth"
 #define kShape @"kShape"
+#define kAngle @"kAngle"
 
 static SPUserResizableViewAnchorPoint SPUserResizableViewNoResizeAnchorPoint = { 0.0, 0.0, 0.0, 0.0 };
 static SPUserResizableViewAnchorPoint SPUserResizableViewUpperLeftAnchorPoint = { 1.0, 1.0, -1.0, 1.0 };
@@ -34,7 +35,7 @@ static SPUserResizableViewAnchorPoint SPUserResizableViewMiddleRightAnchorPoint 
 static SPUserResizableViewAnchorPoint SPUserResizableViewLowerRightAnchorPoint = { 0.0, 0.0, 1.0, -1.0 };
 static SPUserResizableViewAnchorPoint SPUserResizableViewLowerMiddleAnchorPoint = { 0.0, 0.0, 1.0, 0.0 };
 
-static CGFloat PointWidth = 10.0;
+static CGFloat PointWidth = 14.0;
 
 @interface UIBezierPath (dqd_arrowhead)
 
@@ -46,9 +47,10 @@ static CGFloat PointWidth = 10.0;
 
 @end
 
-@interface SPUserResizableView ()
+@interface SPUserResizableView () <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) UIView *oldSuperview;
 @property (nonatomic) NSInteger oldSuperviewIndex;
+@property (nonatomic, strong) UIRotationGestureRecognizer *rotationGesture;
 @end
 
 @implementation SPUserResizableView
@@ -91,6 +93,7 @@ static CGFloat PointWidth = 10.0;
         self.fillColor = [UIColor colorWithString:[aDecoder decodeObjectForKey:kFillColor]];
         self.lineWidth = [aDecoder decodeFloatForKey:kLineWidth];
         self.shape = [aDecoder decodeIntegerForKey:kShape];
+        self.transform = CGAffineTransformMakeRotation([aDecoder decodeFloatForKey:kAngle]);
         self.editing = NO;
     }
     return self;
@@ -106,6 +109,7 @@ static CGFloat PointWidth = 10.0;
     [aCoder encodeObject:[self.fillColor stringFromColor] forKey:kFillColor];
     [aCoder encodeFloat:self.lineWidth forKey:kLineWidth];
     [aCoder encodeInteger:self.shape forKey:kShape];
+    [aCoder encodeFloat:atan2(self.transform.b, self.transform.a) forKey:kAngle];
 }
 
 - (id)initWithFrame:(CGRect)frame andDelegate:(id<DToolDelegate>)delegate
@@ -115,6 +119,39 @@ static CGFloat PointWidth = 10.0;
         self.delegate = delegate;
     }
     return self;
+}
+
+
+- (void)adjustAnchorPointForGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer {
+    if (gestureRecognizer.state == UIGestureRecognizerStateBegan) {
+        UIView *piece = gestureRecognizer.view;
+        CGPoint locationInView = [gestureRecognizer locationInView:piece];
+        CGPoint locationInSuperview = [gestureRecognizer locationInView:piece.superview];
+        
+        piece.layer.anchorPoint = CGPointMake(locationInView.x / piece.bounds.size.width, locationInView.y / piece.bounds.size.height);
+        piece.center = locationInSuperview;
+    }
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    // if the gesture recognizers are on different views, don't allow simultaneous recognition
+    if (gestureRecognizer.view != otherGestureRecognizer.view)
+        return NO;
+    
+    // if either of the gesture recognizers is the long press, don't allow simultaneous recognition
+    if ([gestureRecognizer isKindOfClass:[UILongPressGestureRecognizer class]] || [otherGestureRecognizer isKindOfClass:[UILongPressGestureRecognizer class]])
+        return NO;
+    
+    return YES;
+}
+
+- (void)rotateView:(UIRotationGestureRecognizer *)gestureRecognizer {
+    [self adjustAnchorPointForGestureRecognizer:gestureRecognizer];
+    
+    if ([gestureRecognizer state] == UIGestureRecognizerStateBegan || [gestureRecognizer state] == UIGestureRecognizerStateChanged) {
+        [gestureRecognizer view].transform = CGAffineTransformRotate([[gestureRecognizer view] transform], [gestureRecognizer rotation]);
+        [gestureRecognizer setRotation:0];
+    }
 }
 
 - (void) draw
@@ -132,6 +169,17 @@ static CGFloat PointWidth = 10.0;
 - (void)setFrame:(CGRect)newFrame {
     [super setFrame:newFrame];
     _contentView.frame = CGRectInset(self.bounds, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2, kSPUserResizableViewGlobalInset + kSPUserResizableViewInteractiveBorderSize/2);
+}
+
+- (void)setShape:(SPShape)shape
+{
+    _shape = shape;
+    [self removeGestureRecognizer:self.rotationGesture];
+    if (_shape != SPShapeEllipse) {
+        self.rotationGesture = [[UIRotationGestureRecognizer alloc] initWithTarget:self action:@selector(rotateView:)];
+        self.rotationGesture.delegate = self;
+        [self addGestureRecognizer:self.rotationGesture];
+    }
 }
 
 static CGFloat SPDistanceBetweenTwoPoints(CGPoint point1, CGPoint point2) {
@@ -304,11 +352,14 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
 }
 
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
+    CGAffineTransform oldTransform = self.transform;
+    self.transform = CGAffineTransformIdentity;
     if ([self isResizing]) {
         [self resizeUsingTouchLocation:[[touches anyObject] locationInView:self.superview]];
     } else {
         [self translateUsingTouchLocation:[[touches anyObject] locationInView:self]];
     }
+    self.transform = oldTransform;
 }
 
 - (void)drawRect:(CGRect)rect {
