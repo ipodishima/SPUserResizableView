@@ -183,6 +183,8 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
     if (!self.inRemoveMode)
         [self.delegate toolDidStartEditing:self];
 
+    [self.delegate toolDidStartTouch:self];
+
     UITouch *touch = [touches anyObject];
     anchorPoint = [self anchorPointForTouchLocation:[touch locationInView:self]];
     
