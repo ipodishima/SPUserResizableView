@@ -24,6 +24,7 @@
 #define kLineWidth @"kLineWidth"
 #define kShape @"kShape"
 #define kAngle @"kAngle"
+#define kToolID @"kToolID"
 
 static SPUserResizableViewAnchorPoint SPUserResizableViewNoResizeAnchorPoint = { 0.0, 0.0, 0.0, 0.0 };
 static SPUserResizableViewAnchorPoint SPUserResizableViewUpperLeftAnchorPoint = { 1.0, 1.0, -1.0, 1.0 };
@@ -48,13 +49,11 @@ static CGFloat PointWidth = 14.0;
 @end
 
 @interface SPUserResizableView () <UIGestureRecognizerDelegate>
-@property (nonatomic, strong) UIView *oldSuperview;
-@property (nonatomic) NSInteger oldSuperviewIndex;
 @property (nonatomic, strong) UIRotationGestureRecognizer *rotationGesture;
 @end
 
 @implementation SPUserResizableView
-@synthesize strokeColor = _strokeColor, fillColor = _fillColor, textColor = _textColor, font = _font, lineWidth = _lineWidth, editing = _editing, delegate = _delegatel, inRemoveMode = _inRemoveMode;
+@synthesize strokeColor = _strokeColor, fillColor = _fillColor, textColor = _textColor, font = _font, lineWidth = _lineWidth, editing = _editing, delegate = _delegatel, inRemoveMode = _inRemoveMode, toolID = _toolID;
 
 - (void)setupDefaultAttributes {
     self.minWidth = kSPUserResizableViewDefaultMinWidth;
@@ -93,6 +92,7 @@ static CGFloat PointWidth = 14.0;
         self.fillColor = [UIColor colorWithString:[aDecoder decodeObjectForKey:kFillColor]];
         self.lineWidth = [aDecoder decodeFloatForKey:kLineWidth];
         self.shape = [aDecoder decodeIntegerForKey:kShape];
+        self.toolID = [aDecoder decodeIntegerForKey:kToolID];
         self.transform = CGAffineTransformMakeRotation([aDecoder decodeFloatForKey:kAngle]);
         self.editing = NO;
     }
@@ -110,6 +110,7 @@ static CGFloat PointWidth = 14.0;
     [aCoder encodeFloat:self.lineWidth forKey:kLineWidth];
     [aCoder encodeInteger:self.shape forKey:kShape];
     [aCoder encodeFloat:atan2(self.transform.b, self.transform.a) forKey:kAngle];
+    [aCoder encodeInteger:self.toolID forKey:kToolID];
 }
 
 - (id)initWithFrame:(CGRect)frame andDelegate:(id<DToolDelegate>)delegate
@@ -473,34 +474,37 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
 // undo / redo
 - (BOOL)canUndo
 {
-    return self.superview == nil ? NO : YES;
+    return self.hidden == YES ? NO : YES;
 }
 
 - (void)undoLatestStep
 {
     if ([self canUndo]) {
-        self.oldSuperview = self.superview;
-        self.oldSuperviewIndex = [[self.superview subviews] indexOfObject:self];
-        [self removeFromSuperview];
+        self.hidden = YES;
+        self.userInteractionEnabled = NO;
     }
 }
 
 - (BOOL)canRedo
 {
-    return self.superview == nil ? YES : NO;
+    return self.hidden == YES ? YES : NO;
 }
 
 - (void)redoLatestStep
 {
     if ([self canRedo]) {
-        [self.oldSuperview insertSubview:self atIndex:self.oldSuperviewIndex];
-        self.oldSuperview = nil;
+        self.hidden = NO;
+        self.userInteractionEnabled = YES;
     }
 }
 
 - (void) finalizeUndoRedo
 {
-    self.oldSuperview = nil;
+    if (self.hidden) {
+        [self removeFromSuperview];
+    }
+    else
+        self.userInteractionEnabled = YES;
 }
 
 - (void)setEditing:(BOOL)editing
