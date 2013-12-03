@@ -61,7 +61,7 @@ static CGFloat PointWidth = 14.0;
     self.preventsPositionOutsideSuperview = YES;
     
     self.strokeColor = [UIColor colorWithHexa:0xC7000D];
-    self.fillColor = [UIColor whiteColor];
+    self.fillColor = [UIColor clearColor];
     self.lineWidth = 2.0;
     self.shape = SPShapeRect;
     
