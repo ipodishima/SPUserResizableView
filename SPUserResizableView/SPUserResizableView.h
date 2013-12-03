@@ -31,6 +31,8 @@ typedef enum
     
     // Used to determine which components of the bounds we'll be modifying, based upon where the user's touch started.
     SPUserResizableViewAnchorPoint anchorPoint;
+    
+    BOOL _shouldBeRemoved;
 }
 
 @property (nonatomic, weak) id <SPUserResizableViewDelegate> spDelegate;

@@ -481,6 +481,7 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
 {
     if ([self canUndo]) {
         self.hidden = YES;
+        _shouldBeRemoved = YES;
         self.userInteractionEnabled = NO;
     }
 }
@@ -494,13 +495,14 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
 {
     if ([self canRedo]) {
         self.hidden = NO;
+        _shouldBeRemoved = NO;
         self.userInteractionEnabled = YES;
     }
 }
 
 - (void) finalizeUndoRedo
 {
-    if (self.hidden) {
+    if (_shouldBeRemoved) {
         [self removeFromSuperview];
     }
     else
@@ -511,7 +513,7 @@ typedef struct CGPointSPUserResizableViewAnchorPointPair {
 {
     if (self.inRemoveMode && editing)
     {
-        [self removeFromSuperview];
+        [self.delegate toolShouldBeDeleted:self];
         return;
     }
     _editing = editing;
