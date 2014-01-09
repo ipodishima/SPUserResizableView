@@ -176,11 +176,9 @@ static CGFloat PointWidth = 18.0;
 {
     _shape = shape;
     [self removeGestureRecognizer:self.rotationGesture];
-    if (_shape != SPShapeEllipse) {
-        self.rotationGesture = [[UIRotationGestureRecognizer alloc] initWithTarget:self action:@selector(rotateView:)];
-        self.rotationGesture.delegate = self;
-        [self addGestureRecognizer:self.rotationGesture];
-    }
+    self.rotationGesture = [[UIRotationGestureRecognizer alloc] initWithTarget:self action:@selector(rotateView:)];
+    self.rotationGesture.delegate = self;
+    [self addGestureRecognizer:self.rotationGesture];
 }
 
 static CGFloat SPDistanceBetweenTwoPoints(CGPoint point1, CGPoint point2) {
