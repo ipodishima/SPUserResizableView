@@ -15,7 +15,7 @@
 
 #define kSPUserResizableViewDefaultMinWidth 48.0
 #define kSPUserResizableViewDefaultMinHeight 48.0
-#define kSPUserResizableViewInteractiveBorderSize 14.0
+#define kSPUserResizableViewInteractiveBorderSize 18.0
 
 #define kMinWidth @"kMinWidth"
 #define kMinHeight @"kMinHeight"
@@ -36,7 +36,7 @@ static SPUserResizableViewAnchorPoint SPUserResizableViewMiddleRightAnchorPoint 
 static SPUserResizableViewAnchorPoint SPUserResizableViewLowerRightAnchorPoint = { 0.0, 0.0, 1.0, -1.0 };
 static SPUserResizableViewAnchorPoint SPUserResizableViewLowerMiddleAnchorPoint = { 0.0, 0.0, 1.0, 0.0 };
 
-static CGFloat PointWidth = 14.0;
+static CGFloat PointWidth = 18.0;
 
 @interface UIBezierPath (dqd_arrowhead)
 
