@@ -113,7 +113,7 @@ static CGFloat PointWidth = 18.0;
     [aCoder encodeInteger:self.toolID forKey:kToolID];
 }
 
-- (id)initWithFrame:(CGRect)frame andDelegate:(id<DToolDelegate>)delegate
+- (id)initWithFrame:(CGRect)frame andDelegate:(id<DToolDelegate>)delegate andZoomScale:(CGFloat)zoomScale
 {
     if ((self = [super initWithFrame:frame])) {
         [self setupDefaultAttributes];
